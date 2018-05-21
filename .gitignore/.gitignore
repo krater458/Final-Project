@@ -1,0 +1,122 @@
+
+#define BLYNK_PRINT Serial
+#include "Wire.h"
+#include <Sparkfun_APDS9301_Library.h>
+#include "SparkFunBME280.h"
+#include <WiFi.h>
+#define TRIGGERPIN 16
+#define ECHOPIN    17
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+BME280 mySensor; //Global sensor object
+APDS9301 apds;
+// pins that were assighned below.
+
+// You should get Auth Token in the Blynk App.
+// Go to the Project Settings (nut icon).
+char auth[] = "5f50f23b533a4bcb9c937b35b13af25c";
+
+// Your WiFi credentials.
+// Set password to "" for open networks.
+char ssid[] = "A938EC";
+char pass[] = "86497671";
+WidgetLCD lcd(V1);
+BlynkTimer timer;
+
+// This function sends Arduino's up time every second to Virtual Pin (5).
+// In the app, Widget's reading frequency should be set to PUSH. This means
+// that you define how often to send data to Blynk App.
+void sendSensor()
+{
+  float h = mySensor.readFloatHumidity();
+  float t = mySensor.readTempF();
+  float p = (mySensor.readFloatPressure() * 0.0002953);
+  float l = apds.readLuxLevel();
+ 
+
+  // You can send any value at any time.
+  // Please don't send more that 10 values per second.
+  Blynk.virtualWrite(V5, h);
+  Blynk.virtualWrite(V6, t);
+  Blynk.virtualWrite(V7, p);
+  Blynk.virtualWrite(V8, l);
+}
+
+void setup()
+{
+  // Debug console
+  Serial.begin(115200);
+  while(!Serial);
+  Serial.println("Reading basic values from BME280");
+  
+  Wire.begin();
+  apds.begin(0x39);
+  if (mySensor.beginI2C() == false) //Begin communication over I2C
+  {
+    Serial.println("The chip did not respond. Please check wiring.");
+    while(1); //Freeze
+  }
+  
+  Blynk.begin(auth, ssid, pass);
+  // You can also specify server:
+  //Blynk.begin(auth, ssid, pass, "blynk-cloud.com", 8442);
+  //Blynk.begin(auth, ssid, pass, IPAddress(192,168,1,100), 8442);
+
+  // Setup a function to be called every second
+  timer.setInterval(1000L, sendSensor);
+  {
+  // Debug console
+  Serial.begin(115200);
+pinMode(TRIGGERPIN, OUTPUT);
+  pinMode(ECHOPIN, INPUT);
+
+
+  lcd.clear(); //Use it to clear the LCD Widget
+  lcd.print(0, 0, "Distance in cm"); // use: (position X: 0-15, position Y: 0-1, "Message you want to print")
+  // Please use timed events when LCD printintg in void loop to avoid sending too many commands
+  // It will cause a FLOOD Error, and connection will be dropped
+}
+}
+
+void loop()
+{
+  lcd.clear();
+  lcd.print(0, 0, "Distance in cm"); // use: (position X: 0-15, position Y: 0-1, "Message you want to print")
+  long duration, distance;
+  digitalWrite(TRIGGERPIN, LOW);  
+  delayMicroseconds(3); 
+  
+  digitalWrite(TRIGGERPIN, HIGH);
+  delayMicroseconds(12); 
+  
+  digitalWrite(TRIGGERPIN, LOW);
+  duration = pulseIn(ECHOPIN, HIGH);
+  distance = (duration/2) / 29.1;
+  Serial.print(distance);
+  Serial.println("Cm");
+  lcd.print(7, 1, distance);
+  Blynk.run();
+ // Update temperature. This also updates compensation values used to
+    //  calculate other parameters.
+    Serial.print("Temperature: ");
+    Serial.print(mySensor.readTempF());
+    Serial.println(" degrees F");
+
+    // Display relative humidity.
+    Serial.print("%RH: ");
+    Serial.print(mySensor.readFloatHumidity());
+    Serial.println(" %");
+
+    // Display pressure.
+    Serial.print("Pres: ");
+    Serial.print(mySensor.readFloatPressure() * 0.0002953);
+    Serial.println(" psi");
+
+Serial.print("Luminous flux: ");
+    Serial.println(apds.readLuxLevel(),6);
+
+
+  delay(500);
+  Blynk.run();
+  timer.run(); // Initiates BlynkTimer
+}
